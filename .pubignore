@@ -1,0 +1,26 @@
+# Exclude build and ephemeral artifacts from package and analyzer
+build/
+.dart_tool/
+**/.DS_Store
+**/.idea/
+**/.vscode/
+**/*.iml
+
+# Flutter ephemeral and platform build outputs inside example apps
+example/**/build/**
+example/**/ios/Flutter/ephemeral/**
+example/**/macos/Flutter/ephemeral/**
+example/**/linux/flutter/ephemeral/**
+example/**/windows/flutter/ephemeral/**
+example/**/android/.gradle/**
+example/**/android/local.properties
+example/**/android/app/google-services.json
+example/**/android/key.properties
+
+# Generated Xcode user data
+example/**/ios/Runner.xcodeproj/project.xcworkspace/**
+example/**/ios/Runner.xcodeproj/xcuserdata/**
+example/**/macos/Runner.xcodeproj/project.xcworkspace/**
+example/**/macos/Runner.xcodeproj/xcuserdata/**
+
+
