@@ -30,6 +30,12 @@ class MockFlutterSecureStoragePlusPlatform
   Future<void> delete({required String key}) async {
     _value = null;
   }
+
+  @override
+  Future<int> rotateKeys() async {
+    // Mock implementation - just return 0 for testing
+    return 0;
+  }
 }
 
 void main() {

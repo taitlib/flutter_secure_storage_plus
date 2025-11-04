@@ -6,6 +6,9 @@ import 'flutter_secure_storage_plus_platform_interface.dart';
 /// Method-channel based implementation of [FlutterSecureStoragePlusPlatform].
 class MethodChannelFlutterSecureStoragePlus
     extends FlutterSecureStoragePlusPlatform {
+  /// Creates a new instance of [MethodChannelFlutterSecureStoragePlus].
+  MethodChannelFlutterSecureStoragePlus();
+
   /// The method channel used to interact with the native platform.
   @visibleForTesting
   final methodChannel = const MethodChannel('flutter_secure_storage_plus');
@@ -44,5 +47,11 @@ class MethodChannelFlutterSecureStoragePlus
   @override
   Future<void> delete({required String key}) async {
     await methodChannel.invokeMethod('delete', {'key': key});
+  }
+
+  @override
+  Future<int> rotateKeys() async {
+    final result = await methodChannel.invokeMethod<int>('rotateKeys');
+    return result ?? 0;
   }
 }

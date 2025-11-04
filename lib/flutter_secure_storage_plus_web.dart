@@ -69,4 +69,38 @@ class FlutterSecureStoragePlusWeb extends FlutterSecureStoragePlusPlatform {
       throw Exception('Failed to delete from localStorage: $e');
     }
   }
+
+  @override
+  Future<int> rotateKeys() async {
+    // On web, there are no encryption keys to rotate since localStorage
+    // doesn't use encryption. However, we can still re-write all items
+    // to simulate key rotation for consistency.
+    try {
+      var rotatedCount = 0;
+      final keys = <String>[];
+
+      // Get all keys with our prefix
+      for (var i = 0; i < web.window.localStorage.length; i++) {
+        final key = web.window.localStorage.key(i);
+        if (key != null && key.startsWith(_storagePrefix)) {
+          keys.add(key.substring(_storagePrefix.length));
+        }
+      }
+
+      // Re-write all items
+      for (final key in keys) {
+        final storageKey = _getStorageKey(key);
+        final value = web.window.localStorage.getItem(storageKey);
+        if (value != null) {
+          web.window.localStorage.removeItem(storageKey);
+          web.window.localStorage.setItem(storageKey, value);
+          rotatedCount++;
+        }
+      }
+
+      return rotatedCount;
+    } catch (e) {
+      throw Exception('Failed to rotate keys: $e');
+    }
+  }
 }

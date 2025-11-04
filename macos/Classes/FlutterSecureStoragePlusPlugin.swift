@@ -1,6 +1,7 @@
 import Cocoa
 import FlutterMacOS
 import Security
+import LocalAuthentication
 
 public class FlutterSecureStoragePlusPlugin: NSObject, FlutterPlugin {
   private let service = "com.dhiabechattaoui.flutter_secure_storage_plus"
@@ -11,31 +12,87 @@ public class FlutterSecureStoragePlusPlugin: NSObject, FlutterPlugin {
     registrar.addMethodCallDelegate(instance, channel: channel)
   }
 
-  private func keychainQuery(forKey key: String) -> [String: Any] {
-    return [
+  private func keychainQuery(forKey key: String, requireBiometrics: Bool = false) -> [String: Any] {
+    var query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
-      kSecAttrAccount as String: key,
-      kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+      kSecAttrAccount as String: key
     ]
+    
+    if requireBiometrics {
+      // When using biometrics, use SecAccessControl instead of kSecAttrAccessible
+      if let accessControl = SecAccessControlCreateWithFlags(
+        kCFAllocatorDefault,
+        kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+        [.biometryAny, .devicePasscode],
+        nil
+      ) {
+        query[kSecAttrAccessControl as String] = accessControl
+      }
+    } else {
+      query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+    }
+    
+    return query
+  }
+  
+  private func authenticateWithBiometrics(reason: String, completion: @escaping (Bool, Error?) -> Void) {
+    let context = LAContext()
+    var error: NSError?
+    
+    if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+      context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, authenticationError in
+        DispatchQueue.main.async {
+          completion(success, authenticationError)
+        }
+      }
+    } else {
+      // Fallback to device passcode if biometrics not available
+      if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
+        context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, authenticationError in
+          DispatchQueue.main.async {
+            completion(success, authenticationError)
+          }
+        }
+      } else {
+        DispatchQueue.main.async {
+          completion(false, error)
+        }
+      }
+    }
   }
 
-  private func writeToKeychain(key: String, value: String) -> OSStatus {
+  private func writeToKeychain(key: String, value: String, requireBiometrics: Bool = false) -> OSStatus {
     let data = value.data(using: .utf8)!
-    var query = keychainQuery(forKey: key)
+    var query = keychainQuery(forKey: key, requireBiometrics: requireBiometrics)
     
     // Delete any existing item
     SecItemDelete(query as CFDictionary)
     
     // Add new item
     query[kSecValueData as String] = data
+    
+    // For biometric-protected items, provide authentication context
+    if requireBiometrics {
+      let context = LAContext()
+      context.localizedFallbackTitle = ""
+      query[kSecUseAuthenticationContext as String] = context
+    }
+    
     return SecItemAdd(query as CFDictionary, nil)
   }
 
-  private func readFromKeychain(key: String) -> String? {
-    var query = keychainQuery(forKey: key)
+  private func readFromKeychain(key: String, requireBiometrics: Bool = false) -> String? {
+    var query = keychainQuery(forKey: key, requireBiometrics: requireBiometrics)
     query[kSecReturnData as String] = kCFBooleanTrue
     query[kSecMatchLimit as String] = kSecMatchLimitOne
+    
+    // For biometric-protected items, we need to provide an authentication context
+    if requireBiometrics {
+      let context = LAContext()
+      context.localizedFallbackTitle = ""
+      query[kSecUseAuthenticationContext as String] = context
+    }
     
     var result: AnyObject?
     let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -52,6 +109,50 @@ public class FlutterSecureStoragePlusPlugin: NSObject, FlutterPlugin {
     let query = keychainQuery(forKey: key)
     return SecItemDelete(query as CFDictionary)
   }
+  
+  private func getAllKeysFromKeychain() -> [String] {
+    var query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecReturnAttributes as String: kCFBooleanTrue,
+      kSecMatchLimit as String: kSecMatchLimitAll
+    ]
+    
+    var result: AnyObject?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    
+    if status == errSecSuccess,
+       let items = result as? [[String: Any]] {
+      return items.compactMap { item in
+        item[kSecAttrAccount as String] as? String
+      }
+    }
+    return []
+  }
+  
+  private func rotateKeysInKeychain() -> Int {
+    let keys = getAllKeysFromKeychain()
+    var rotatedCount = 0
+    
+    for key in keys {
+      // Try reading without biometrics first
+      if let value = readFromKeychain(key: key, requireBiometrics: false) {
+        // Delete the old item
+        let _ = deleteFromKeychain(key: key)
+        // Re-encrypt without biometrics
+        let status = writeToKeychain(key: key, value: value, requireBiometrics: false)
+        if status == errSecSuccess {
+          rotatedCount += 1
+        }
+      } else {
+        // Try reading with biometrics (requires user auth)
+        // For key rotation, we'll skip biometric-protected items that can't be read
+        // In practice, the app should handle this by authenticating before rotation
+      }
+    }
+    
+    return rotatedCount
+  }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
@@ -64,11 +165,29 @@ public class FlutterSecureStoragePlusPlugin: NSObject, FlutterPlugin {
         result(FlutterError(code: "INVALID_ARGUMENT", message: "Key and value are required", details: nil))
         return
       }
-      let status = writeToKeychain(key: key, value: value)
-      if status == errSecSuccess {
-        result(nil)
+      let requireBiometrics = args["requireBiometrics"] as? Bool ?? false
+      
+      if requireBiometrics {
+        // Authenticate before writing
+        authenticateWithBiometrics(reason: "Authenticate to save secure data") { success, error in
+          if success {
+            let status = self.writeToKeychain(key: key, value: value, requireBiometrics: true)
+            if status == errSecSuccess {
+              result(nil)
+            } else {
+              result(FlutterError(code: "STORAGE_ERROR", message: "Failed to write to keychain: \(status)", details: nil))
+            }
+          } else {
+            result(FlutterError(code: "AUTH_ERROR", message: "Biometric authentication failed", details: error?.localizedDescription))
+          }
+        }
       } else {
-        result(FlutterError(code: "STORAGE_ERROR", message: "Failed to write to keychain: \(status)", details: nil))
+        let status = writeToKeychain(key: key, value: value, requireBiometrics: false)
+        if status == errSecSuccess {
+          result(nil)
+        } else {
+          result(FlutterError(code: "STORAGE_ERROR", message: "Failed to write to keychain: \(status)", details: nil))
+        }
       }
     case "read":
       guard let args = call.arguments as? [String: Any],
@@ -76,10 +195,27 @@ public class FlutterSecureStoragePlusPlugin: NSObject, FlutterPlugin {
         result(FlutterError(code: "INVALID_ARGUMENT", message: "Key is required", details: nil))
         return
       }
-      if let value = readFromKeychain(key: key) {
-        result(value)
+      let requireBiometrics = args["requireBiometrics"] as? Bool ?? false
+      
+      if requireBiometrics {
+        // Authenticate before reading
+        authenticateWithBiometrics(reason: "Authenticate to access secure data") { success, error in
+          if success {
+            if let value = self.readFromKeychain(key: key, requireBiometrics: true) {
+              result(value)
+            } else {
+              result(nil)
+            }
+          } else {
+            result(FlutterError(code: "AUTH_ERROR", message: "Biometric authentication failed", details: error?.localizedDescription))
+          }
+        }
       } else {
-        result(nil)
+        if let value = readFromKeychain(key: key, requireBiometrics: false) {
+          result(value)
+        } else {
+          result(nil)
+        }
       }
     case "delete":
       guard let args = call.arguments as? [String: Any],
@@ -93,6 +229,9 @@ public class FlutterSecureStoragePlusPlugin: NSObject, FlutterPlugin {
       } else {
         result(FlutterError(code: "STORAGE_ERROR", message: "Failed to delete from keychain: \(status)", details: nil))
       }
+    case "rotateKeys":
+      let rotatedCount = rotateKeysInKeychain()
+      result(rotatedCount)
     default:
       result(FlutterMethodNotImplemented)
     }

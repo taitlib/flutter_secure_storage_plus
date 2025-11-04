@@ -1,3 +1,13 @@
+/// Platform interface for flutter_secure_storage_plus implementations.
+///
+/// This library defines the abstract interface that all platform-specific
+/// implementations must extend.
+///
+/// Platform implementations should extend [FlutterSecureStoragePlusPlatform]
+/// and register themselves using [FlutterSecureStoragePlusPlatform.instance].
+// ignore: unnecessary_library_name
+library flutter_secure_storage_plus_platform_interface;
+
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'flutter_secure_storage_plus_method_channel.dart';
@@ -51,5 +61,12 @@ abstract class FlutterSecureStoragePlusPlatform extends PlatformInterface {
   /// Deletes a value from secure storage for the given key.
   Future<void> delete({required String key}) {
     throw UnimplementedError('delete() has not been implemented.');
+  }
+
+  /// Rotates encryption keys by re-encrypting all stored values with new keys.
+  /// This is a transparent operation that migrates existing data to new encryption keys.
+  /// Returns the number of keys that were rotated.
+  Future<int> rotateKeys() {
+    throw UnimplementedError('rotateKeys() has not been implemented.');
   }
 }

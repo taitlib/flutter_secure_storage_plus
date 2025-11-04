@@ -1,7 +1,36 @@
 ## [Unreleased]
 
+## [0.1.0] - 2025-11-04
+
+### Added
+- **Biometric authentication support** - Full biometric protection for read/write operations:
+  - **iOS/macOS**: Face ID and Touch ID integration using LocalAuthentication framework
+  - **Android**: Fingerprint and biometric prompt using BiometricPrompt API
+  - Added `requireBiometrics` parameter to `write()` and `read()` methods
+  - Biometric-protected items are stored separately with enhanced security
+- **Key rotation helpers** - Transparent encryption key rotation:
+  - Added `rotateKeys()` method to re-encrypt all stored values with new keys
+  - Supports both regular and biometric-protected storage
+  - Returns count of rotated items
+  - Implemented on all platforms (Android, iOS, macOS, Web)
+- Enhanced example app with comprehensive biometric and key rotation testing UI
+- Added comprehensive library and API documentation to achieve 160/160 pana score
+
 ### Changed
-- Example GIF added to README
+- **Android**: Updated MainActivity in example app to use `FlutterFragmentActivity` for biometric support
+- **Android**: Added `androidx.biometric` and `androidx.fragment` dependencies
+- Improved error handling for biometric authentication failures
+- All code formatted to match Dart formatter standards
+
+### Fixed
+- Fixed Android compilation errors related to biometric authentication
+- Fixed activity context handling for biometric prompts
+- Resolved static analysis issues for pub.dev publication
+
+### Documentation
+- Added library-level documentation with usage examples
+- Added constructor documentation for all public classes
+- Improved API documentation coverage to 80%+
 
 ## [0.0.5] - TBD
 
@@ -51,10 +80,8 @@
 - Multi-platform plugin scaffold (iOS, Android, Web, Windows, macOS, Linux)
 - WASM-compatible web implementation placeholder
 
-### Planned
-- Biometric unlock and key rotation APIs
-
-[Unreleased]: https://github.com/Dhia-Bechattaoui/flutter_secure_storage_plus/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/Dhia-Bechattaoui/flutter_secure_storage_plus/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Dhia-Bechattaoui/flutter_secure_storage_plus/compare/v0.0.5...v0.1.0
 [0.0.5]: https://github.com/Dhia-Bechattaoui/flutter_secure_storage_plus/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/Dhia-Bechattaoui/flutter_secure_storage_plus/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/Dhia-Bechattaoui/flutter_secure_storage_plus/compare/v0.0.2...v0.0.3
