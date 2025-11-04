@@ -32,6 +32,10 @@ Enhanced secure storage with biometric unlock and key rotation.
 - macOS
 - Linux
 
+## Example
+
+<img src="assets/example.gif" width="300" alt="Example usage of flutter_secure_storage_plus">
+
 ## Features
 
 - Biometric-gated read/write operations (Face ID/Touch ID, Android Biometrics)
@@ -65,12 +69,6 @@ Future<void> example() async {
   print(token);
 }
 ```
-
-## Example
-
-<img src="assets/example.gif" width="300" alt="Example usage of flutter_secure_storage_plus">
-
-API surface is evolving; see examples and docs as features land.
 
 ## Roadmap
 
