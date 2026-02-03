@@ -155,7 +155,7 @@ class FlutterSecureStoragePlusPlugin: FlutterPlugin, MethodCallHandler, Activity
     val promptInfo = BiometricPrompt.PromptInfo.Builder()
       .setTitle("Biometric Authentication")
       .setSubtitle(reason)
-      .setNegativeButtonText("Cancel")
+      .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
       .build()
 
     try {
@@ -313,7 +313,7 @@ class FlutterSecureStoragePlusPlugin: FlutterPlugin, MethodCallHandler, Activity
             // Create new MasterKey with biometric requirement and re-encrypt
             val newBiometricMasterKey = MasterKey.Builder(context, MasterKey.DEFAULT_MASTER_KEY_ALIAS)
               .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-              .setUserAuthenticationRequired(true)
+              .setUserAuthenticationRequired(true, 0)
               .build()
             
             val newBiometricPrefs = EncryptedSharedPreferences.create(
