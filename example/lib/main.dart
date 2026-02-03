@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'dart:async';
 
@@ -63,7 +65,9 @@ class _MyAppState extends State<MyApp> {
       });
     } catch (e) {
       setState(() {
-        _status = '✗ Write failed: $e';
+        log("000e===============$e");
+        print("000e===============$e");
+        _status = '✗ Write  2222 failed: $e';
       });
     } finally {
       setState(() {
