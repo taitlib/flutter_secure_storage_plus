@@ -67,7 +67,7 @@ class _MyAppState extends State<MyApp> {
       setState(() {
         log("000e===============$e");
         print("000e===============$e");
-        _status = '✗ Write  2222 failed: $e';
+        _status = '✗ Write failed: $e';
       });
     } finally {
       setState(() {
