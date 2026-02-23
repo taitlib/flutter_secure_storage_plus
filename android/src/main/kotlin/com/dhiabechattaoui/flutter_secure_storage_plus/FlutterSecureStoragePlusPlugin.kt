@@ -3,7 +3,11 @@ package com.dhiabechattaoui.flutter_secure_storage_plus
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Base64
+import android.os.Build
+import android.app.KeyguardManager
+import android.hardware.fingerprint.FingerprintManager
 import androidx.biometric.BiometricPrompt
+import androidx.biometric.BiometricManager
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -68,8 +72,47 @@ class FlutterSecureStoragePlusPlugin :
     }
 
     // =============================
-    // Cipher Builders
+    // checkBiometricAvailable
     // =============================
+
+    private fun checkBiometricAvailable(
+        context: Context,
+        result: MethodChannel.Result
+    ): Boolean {
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            val keyguard =
+                context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+
+            if (!keyguard.isDeviceSecure) {
+                result.error("NO_LOCK", "请先设置锁屏密码", null)
+                return false
+            }
+
+        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+
+            val fingerprintManager =
+                context.getSystemService(Context.FINGERPRINT_SERVICE) as FingerprintManager
+
+            if (!fingerprintManager.isHardwareDetected ||
+                !fingerprintManager.hasEnrolledFingerprints()
+            ) {
+                result.error("NO_FINGERPRINT", "请先注册指纹", null)
+                return false
+            }
+
+        }
+
+        return true
+    }
+
+    // =============================
+    // Cipher Builder
+    // =============================
+
+    private fun buildCipher(): Cipher {
+        return Cipher.getInstance("AES/GCM/NoPadding")
+    }
 
     private fun buildEncryptCipher(): Cipher {
 
@@ -89,6 +132,7 @@ class FlutterSecureStoragePlusPlugin :
 
         return cipher
     }
+
 
     private fun buildDecryptCipher(
         data: ByteArray
@@ -133,8 +177,9 @@ class FlutterSecureStoragePlusPlugin :
             return
         }
 
-        val cipher =
-            buildEncryptCipher()
+
+        val cipher = buildEncryptCipher()
+
 
         val prompt =
             BiometricPrompt(
@@ -149,24 +194,13 @@ class FlutterSecureStoragePlusPlugin :
 
                         try {
 
-                            val cryptoCipher =
-                                authResult.cryptoObject!!.cipher!!
+                            val cryptoCipher = authResult.cryptoObject!!.cipher!!
+                            val encrypted = cryptoCipher.doFinal(
+                                value.toByteArray(Charset.forName("UTF-8"))
+                            )
+                            val combined = cryptoCipher.iv + encrypted
 
-                            val encrypted =
-                                cryptoCipher.doFinal(
-                                    value.toByteArray(
-                                        Charset.forName("UTF-8")
-                                    )
-                                )
-
-                            val combined =
-                                cryptoCipher.iv + encrypted
-
-                            val encoded =
-                                Base64.encodeToString(
-                                    combined,
-                                    Base64.NO_WRAP
-                                )
+                            val encoded = Base64.encodeToString(combined, Base64.NO_WRAP)
 
                             prefs.edit()
                                 .putString(prefKey, encoded)
@@ -196,19 +230,27 @@ class FlutterSecureStoragePlusPlugin :
                 }
             )
 
-        val auth = BiometricAuthHelper.resolveAuthenticators(context)
+        val builder = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Secure Storage")
+            .setSubtitle("Authenticate to encrypt")
 
-        val promptInfo =
-            BiometricPrompt.PromptInfo.Builder()
-                .setTitle("Secure Storage")
-                .setSubtitle("Authenticate to encrypt")
-                .setAllowedAuthenticators(auth.authenticators)
-                .build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+
+            val auth = BiometricAuthHelper.resolveAuthenticators(context)
+            builder.setAllowedAuthenticators(auth.authenticators)
+
+        } else {
+            // Android 6–10
+            builder.setNegativeButtonText("Cancel")
+        }
+
+        val promptInfo = builder.build()
 
         prompt.authenticate(
             promptInfo,
             BiometricPrompt.CryptoObject(cipher)
         )
+
     }
 
     private fun authenticateAndDecrypt(
@@ -221,11 +263,9 @@ class FlutterSecureStoragePlusPlugin :
             return
         }
 
-        val decoded =
-            Base64.decode(stored, Base64.NO_WRAP)
+        val decoded = Base64.decode(stored, Base64.NO_WRAP)
 
-        val (cipher, encrypted) =
-            buildDecryptCipher(decoded)
+        val (cipher, encrypted) = buildDecryptCipher(decoded)
 
         val prompt =
             BiometricPrompt(
@@ -240,25 +280,15 @@ class FlutterSecureStoragePlusPlugin :
 
                         try {
 
-                            val cryptoCipher =
-                                authResult.cryptoObject!!.cipher!!
+                            val cryptoCipher = authResult.cryptoObject!!.cipher!!
 
-                            val decrypted =
-                                cryptoCipher.doFinal(encrypted)
+                            val decrypted = cryptoCipher.doFinal(encrypted)
 
-                            result.success(
-                                String(
-                                    decrypted,
-                                    Charset.forName("UTF-8")
-                                )
-                            )
+                            result.success(String(decrypted, Charset.forName("UTF-8")))
 
                         } catch (e: Exception) {
-                            result.error(
-                                "DECRYPT_ERROR",
-                                e.message,
-                                null
-                            )
+
+                            result.error("DECRYPT_ERROR", e.message, null)
                         }
                     }
 
@@ -266,28 +296,32 @@ class FlutterSecureStoragePlusPlugin :
                         errorCode: Int,
                         errString: CharSequence
                     ) {
-                        result.error(
-                            "AUTH_ERROR",
-                            errString.toString(),
-                            null
-                        )
+                        result.error("AUTH_ERROR", errString.toString(), null)
                     }
                 }
             )
 
-        val auth = BiometricAuthHelper.resolveAuthenticators(context)
+        val builder = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Secure Storage")
+            .setSubtitle("Authenticate to decrypt")
 
-        val promptInfo =
-            BiometricPrompt.PromptInfo.Builder()
-                .setTitle("Secure Storage")
-                .setSubtitle("Authenticate to decrypt")
-                .setAllowedAuthenticators(auth.authenticators)
-                .build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+
+            val auth = BiometricAuthHelper.resolveAuthenticators(context)
+            builder.setAllowedAuthenticators(auth.authenticators)
+
+        } else {
+            // Android 6–10
+            builder.setNegativeButtonText("Cancel")
+        }
+
+        val promptInfo = builder.build()
 
         prompt.authenticate(
             promptInfo,
             BiometricPrompt.CryptoObject(cipher)
         )
+
     }
 
     // =============================
@@ -302,6 +336,11 @@ class FlutterSecureStoragePlusPlugin :
         when (call.method) {
 
             "write" -> {
+
+                // ① 先检查设备是否支持
+                if (!checkBiometricAvailable(context, result)) {
+                    return
+                }
 
                 val key =
                     call.argument<String>("key")
@@ -326,6 +365,11 @@ class FlutterSecureStoragePlusPlugin :
             }
 
             "read" -> {
+
+                // ① 先检查设备是否支持
+                if (!checkBiometricAvailable(context, result)) {
+                    return
+                }
 
                 val key =
                     call.argument<String>("key")
@@ -355,6 +399,11 @@ class FlutterSecureStoragePlusPlugin :
 
             "delete" -> {
 
+                // ① 先检查设备是否支持
+                if (!checkBiometricAvailable(context, result)) {
+                    return
+                }
+
                 val key =
                     call.argument<String>("key")
 
@@ -372,6 +421,12 @@ class FlutterSecureStoragePlusPlugin :
             }
 
             "getPlatformVersion" -> {
+
+                // ① 先检查设备是否支持
+                if (!checkBiometricAvailable(context, result)) {
+                    return
+                }
+
                 result.success("Android")
             }
 
