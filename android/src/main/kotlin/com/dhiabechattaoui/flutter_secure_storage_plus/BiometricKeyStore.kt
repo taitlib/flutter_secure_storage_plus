@@ -81,9 +81,9 @@ object BiometricKeyStore {
         // 统一使用 0 秒（每次都认证）
         // =============================
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 
-            // Android 11+
+            // Android 10+
             builder.setUserAuthenticationParameters(
                 0, // 每次都必须认证
                 KeyProperties.AUTH_BIOMETRIC_STRONG
@@ -92,7 +92,7 @@ object BiometricKeyStore {
 
         } else {
 
-            // Android 6 ~ 10
+            // Android 6 ~ 9
             // ⭐⭐⭐ Samsung Android9 必须 -1
             builder.setUserAuthenticationValidityDurationSeconds(-1)
         }

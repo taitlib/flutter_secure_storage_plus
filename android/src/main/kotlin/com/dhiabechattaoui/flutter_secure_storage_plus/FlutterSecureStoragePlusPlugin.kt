@@ -80,27 +80,49 @@ class FlutterSecureStoragePlusPlugin :
         result: MethodChannel.Result
     ): Boolean {
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            val keyguard =
-                context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            result.error("UNSUPPORTED", "Android 6 以下不支持", null)
+            return false
+        }
 
-            if (!keyguard.isDeviceSecure) {
-                result.error("NO_LOCK", "请先设置锁屏密码", null)
-                return false
+        val keyguard =
+            context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+
+        if (!keyguard.isDeviceSecure) {
+            result.error("NO_LOCK", "请先设置锁屏密码", null)
+            return false
+        }
+
+        // Android 10+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+
+            val biometricManager = BiometricManager.from(context)
+
+            val canAuth = biometricManager.canAuthenticate(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG
+                        or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+
+            if (canAuth == BiometricManager.BIOMETRIC_SUCCESS) {
+                return true
             }
 
-        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            result.error("NO_AUTH", "认证不可用", null)
+            return false
+        }
 
-            val fingerprintManager =
-                context.getSystemService(Context.FINGERPRINT_SERVICE) as FingerprintManager
+        // Android 6–9 走指纹判断
+        val fingerprintManager =
+            context.getSystemService(Context.FINGERPRINT_SERVICE) as FingerprintManager
 
-            if (!fingerprintManager.isHardwareDetected ||
-                !fingerprintManager.hasEnrolledFingerprints()
-            ) {
-                result.error("NO_FINGERPRINT", "请先注册指纹", null)
-                return false
-            }
+        if (!fingerprintManager.isHardwareDetected) {
+            // 没硬件，但有锁屏 -> 允许
+            return true
+        }
 
+        if (!fingerprintManager.hasEnrolledFingerprints()) {
+            result.error("NO_FINGERPRINT", "请先注册指纹", null)
+            return false
         }
 
         return true
@@ -234,13 +256,13 @@ class FlutterSecureStoragePlusPlugin :
             .setTitle("Secure Storage")
             .setSubtitle("Authenticate to encrypt")
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Android 11+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 1O+
             val auth = BiometricAuthHelper.resolveAuthenticators(context)
             builder.setAllowedAuthenticators(auth.authenticators)
 
         } else {
-            // Android 6–10
+            // Android 6–9
             builder.setNegativeButtonText("Cancel")
         }
 
@@ -305,13 +327,13 @@ class FlutterSecureStoragePlusPlugin :
             .setTitle("Secure Storage")
             .setSubtitle("Authenticate to decrypt")
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Android 11+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+
             val auth = BiometricAuthHelper.resolveAuthenticators(context)
             builder.setAllowedAuthenticators(auth.authenticators)
 
         } else {
-            // Android 6–10
+            // Android 6–9
             builder.setNegativeButtonText("Cancel")
         }
 

@@ -27,19 +27,6 @@ object BiometricAuthHelper {
             )
         }
 
-        // 2️⃣ fallback WEAK（Tab S4 / Samsung 老设备）
-        val weak = manager.canAuthenticate(
-            BiometricManager.Authenticators.BIOMETRIC_WEAK
-        )
-
-        if (weak == BiometricManager.BIOMETRIC_SUCCESS) {
-            return AuthResult(
-                BiometricManager.Authenticators.BIOMETRIC_WEAK
-                        or BiometricManager.Authenticators.DEVICE_CREDENTIAL,
-                "Using WEAK biometric"
-            )
-        }
-
         // 3️⃣ 最后 PIN
         return AuthResult(
             BiometricManager.Authenticators.DEVICE_CREDENTIAL,
