@@ -67,8 +67,8 @@ object BiometricKeyStore {
                 // 强制认证
                 .setUserAuthenticationRequired(true)
 
-                // 生物变更失效
-                .setInvalidatedByBiometricEnrollment(true)
+                // 生物变更不失效
+                .setInvalidatedByBiometricEnrollment(false)
 
 
         // Android 10+
