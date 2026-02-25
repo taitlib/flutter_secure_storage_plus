@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Base64
 import android.os.Build
 import android.app.KeyguardManager
+import android.hardware.fingerprint.FingerprintManager
 import androidx.biometric.BiometricPrompt
 import androidx.biometric.BiometricManager
 import androidx.core.content.ContextCompat
@@ -92,49 +93,65 @@ class FlutterSecureStoragePlusPlugin :
             return false
         }
 
-        // Android 6+ 统一使用 BiometricManager
-        val biometricManager = BiometricManager.from(context)
 
-        // ① 先判断 DEVICE_CREDENTIAL
-        val deviceResult = biometricManager.canAuthenticate(
-            BiometricManager.Authenticators.DEVICE_CREDENTIAL
-        )
+        // 🔥 国产ROM兼容 Android 6-10
+        try {
+            // 走指纹判断
+            val fingerprintManager =
+                context.getSystemService(Context.FINGERPRINT_SERVICE) as FingerprintManager
 
-        if (deviceResult == BiometricManager.BIOMETRIC_SUCCESS) {
-            return true
-        }
-
-        // ② 再判断 BIOMETRIC_STRONG
-        val strongResult = biometricManager.canAuthenticate(
-            BiometricManager.Authenticators.BIOMETRIC_STRONG
-        )
-
-        when (strongResult) {
-
-            BiometricManager.BIOMETRIC_SUCCESS -> {
+            if (!fingerprintManager.isHardwareDetected) {
+                // 没硬件，但有锁屏 -> 允许
                 return true
             }
 
-            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
+            if (!fingerprintManager.hasEnrolledFingerprints()) {
                 result.error("NO_FINGERPRINT", "请先注册指纹", null)
                 return false
             }
+        } catch (e: Exception) {
+            // 无指纹硬件
+        }
 
-            BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> {
-                // 没硬件但有锁屏 → 允许走锁屏
-                return true
-            }
+        // Android 11+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
 
-            BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> {
-                result.error("HW_UNAVAILABLE", "生物识别暂不可用", null)
-                return false
-            }
+            val biometricManager = BiometricManager.from(context)
 
-            else -> {
-                result.error("NO_AUTH", "认证不可用", null)
-                return false
+            val strongResult = biometricManager.canAuthenticate(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG
+                        or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+
+            when (strongResult) {
+
+                BiometricManager.BIOMETRIC_SUCCESS -> {
+                    return true
+                }
+
+                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
+                    result.error("NO_FINGERPRINT", "请先注册指纹", null)
+                    return false
+                }
+
+                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> {
+                    // 没硬件但有锁屏 → 允许走锁屏
+                    return true
+                }
+
+                BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> {
+                    result.error("HW_UNAVAILABLE", "生物识别暂不可用", null)
+                    return false
+                }
+
+                else -> {
+                    result.error("NO_AUTH", "认证不可用", null)
+                    return false
+                }
             }
         }
+
+        return true
     }
 
     // =============================
@@ -265,13 +282,13 @@ class FlutterSecureStoragePlusPlugin :
             .setTitle("Secure Storage")
             .setSubtitle("Authenticate to encrypt")
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Android 1O+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+
             val auth = BiometricAuthHelper.resolveAuthenticators(context)
             builder.setAllowedAuthenticators(auth.authenticators)
 
         } else {
-            // Android 6–9
+            // Android 6–10
             builder.setNegativeButtonText("Cancel")
         }
 
@@ -336,13 +353,13 @@ class FlutterSecureStoragePlusPlugin :
             .setTitle("Secure Storage")
             .setSubtitle("Authenticate to decrypt")
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Android 10+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+
             val auth = BiometricAuthHelper.resolveAuthenticators(context)
             builder.setAllowedAuthenticators(auth.authenticators)
 
         } else {
-            // Android 6–9
+            // Android 6–10
             builder.setNegativeButtonText("Cancel")
         }
 

@@ -70,30 +70,34 @@ object BiometricKeyStore {
                 // 生物变更不失效
                 .setInvalidatedByBiometricEnrollment(false)
 
+                // 锁屏状态不可用
+               .setUnlockedDeviceRequired(true)
 
-        // Android 10+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // 锁屏状态不可用
-            builder.setUnlockedDeviceRequired(true)
-        }
 
         // =============================
         // 统一使用 0 秒（每次都认证）
         // =============================
+        try {
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
 
-            // Android 10+
-            builder.setUserAuthenticationParameters(
-                0, // 每次都必须认证
-                KeyProperties.AUTH_BIOMETRIC_STRONG
-                        or KeyProperties.AUTH_DEVICE_CREDENTIAL
-            )
+                // Android 11+
+                builder.setUserAuthenticationParameters(
+                    0, // 每次都必须认证
+                    KeyProperties.AUTH_BIOMETRIC_STRONG
+                            or KeyProperties.AUTH_DEVICE_CREDENTIAL
+                )
 
-        } else {
+            } else {
 
-            // Android 6 ~ 9
-            // ⭐⭐⭐ Samsung Android9 必须 -1
+                // Android 6 ~ 10
+                // ⭐⭐⭐ Samsung Android10 必须 -1
+                builder.setUserAuthenticationValidityDurationSeconds(-1)
+            }
+
+        } catch (e: NoSuchMethodError) {
+
+            // 🔥 国产ROM兼容
             builder.setUserAuthenticationValidityDurationSeconds(-1)
         }
 
