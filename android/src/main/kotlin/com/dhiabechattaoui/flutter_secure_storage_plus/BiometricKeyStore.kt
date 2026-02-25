@@ -64,8 +64,8 @@ object BiometricKeyStore {
                 // 每次随机 IV
                 .setRandomizedEncryptionRequired(true)
 
-                // 不强制认证
-                .setUserAuthenticationRequired(false)
+                // 强制认证
+                .setUserAuthenticationRequired(true)
 
                 // 生物变更不失效
                 .setInvalidatedByBiometricEnrollment(false)
