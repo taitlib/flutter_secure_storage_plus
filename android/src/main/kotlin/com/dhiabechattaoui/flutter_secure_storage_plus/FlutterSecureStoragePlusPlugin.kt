@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import android.util.Base64
 import android.os.Build
 import android.app.KeyguardManager
-import android.hardware.fingerprint.FingerprintManager
 import androidx.biometric.BiometricPrompt
 import androidx.biometric.BiometricManager
 import androidx.core.content.ContextCompat
