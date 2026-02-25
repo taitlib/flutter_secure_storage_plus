@@ -96,12 +96,21 @@ class FlutterSecureStoragePlusPlugin :
         // Android 6+ 统一使用 BiometricManager
         val biometricManager = BiometricManager.from(context)
 
-        val canAuth = biometricManager.canAuthenticate(
-            BiometricManager.Authenticators.BIOMETRIC_STRONG
-                    or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        // ① 先判断 DEVICE_CREDENTIAL
+        val deviceResult = biometricManager.canAuthenticate(
+            BiometricManager.Authenticators.DEVICE_CREDENTIAL
         )
 
-        when (canAuth) {
+        if (deviceResult == BiometricManager.BIOMETRIC_SUCCESS) {
+            return true
+        }
+
+        // ② 再判断 BIOMETRIC_STRONG
+        val strongResult = biometricManager.canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG
+        )
+
+        when (strongResult) {
 
             BiometricManager.BIOMETRIC_SUCCESS -> {
                 return true
