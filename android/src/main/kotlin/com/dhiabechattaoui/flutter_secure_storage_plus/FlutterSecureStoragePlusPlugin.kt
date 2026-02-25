@@ -93,39 +93,40 @@ class FlutterSecureStoragePlusPlugin :
             return false
         }
 
-        // 走指纹判断
-        val fingerprintManager =
-            context.getSystemService(Context.FINGERPRINT_SERVICE) as FingerprintManager
+        // Android 6+ 统一使用 BiometricManager
+        val biometricManager = BiometricManager.from(context)
 
-        if (!fingerprintManager.isHardwareDetected) {
-            // 没硬件，但有锁屏 -> 允许
-            return true
-        }
+        val canAuth = biometricManager.canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG
+                    or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        )
 
-        if (!fingerprintManager.hasEnrolledFingerprints()) {
-            result.error("NO_FINGERPRINT", "请先注册指纹", null)
-            return false
-        }
+        when (canAuth) {
 
-        // Android 10+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-
-            val biometricManager = BiometricManager.from(context)
-
-            val canAuth = biometricManager.canAuthenticate(
-                BiometricManager.Authenticators.BIOMETRIC_STRONG
-                        or BiometricManager.Authenticators.DEVICE_CREDENTIAL
-            )
-
-            if (canAuth == BiometricManager.BIOMETRIC_SUCCESS) {
+            BiometricManager.BIOMETRIC_SUCCESS -> {
                 return true
             }
 
-            result.error("NO_AUTH", "认证不可用", null)
-            return false
-        }
+            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
+                result.error("NO_FINGERPRINT", "请先注册指纹", null)
+                return false
+            }
 
-        return true
+            BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> {
+                // 没硬件但有锁屏 → 允许走锁屏
+                return true
+            }
+
+            BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> {
+                result.error("HW_UNAVAILABLE", "生物识别暂不可用", null)
+                return false
+            }
+
+            else -> {
+                result.error("NO_AUTH", "认证不可用", null)
+                return false
+            }
+        }
     }
 
     // =============================
