@@ -2,6 +2,7 @@ package com.dhiabechattaoui.flutter_secure_storage_plus
 
 import android.app.KeyguardManager
 import android.content.Context
+import android.hardware.fingerprint.FingerprintManager
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -14,10 +15,25 @@ object BiometricKeyStore {
 
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
 
-    fun getOrCreateKey(
-        context: Context,
-        alias: String
-    ): SecretKey {
+
+    fun hasBiometricHardware(context: Context): Boolean {
+
+        // Android 1-5
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
+
+        return try {
+            val fingerprintManager =
+                context.getSystemService(Context.FINGERPRINT_SERVICE) as FingerprintManager
+
+            fingerprintManager.isHardwareDetected &&
+                    fingerprintManager.hasEnrolledFingerprints()
+
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun getOrCreateKey(context: Context, alias: String): SecretKey {
 
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
         keyStore.load(null)
@@ -52,9 +68,6 @@ object BiometricKeyStore {
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setRandomizedEncryptionRequired(true)
 
-            // 🔐 强制认证
-            .setUserAuthenticationRequired(true)
-
             // 不因新增指纹失效
             .setInvalidatedByBiometricEnrollment(false)
 
@@ -66,6 +79,10 @@ object BiometricKeyStore {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
 
                 // ✅ Android 11+
+
+                // 🔐 强制认证
+                builder.setUserAuthenticationRequired(true)
+
                 builder.setUserAuthenticationParameters(
                     0, // 每次必须认证
                     KeyProperties.AUTH_BIOMETRIC_STRONG
@@ -79,13 +96,36 @@ object BiometricKeyStore {
                 // ⚠ 不能用 0
                 // ⚠ Samsung Android10 必须 -1
 
-                builder.setUserAuthenticationValidityDurationSeconds(-1)
+                if (hasBiometricHardware(context)) {
+                    // 🔥 有指纹识别
+
+                    // 🔐 强制认证
+                    builder.setUserAuthenticationRequired(true)
+                    builder.setUserAuthenticationValidityDurationSeconds(-1)
+
+                } else {
+                    // 🔥 无指纹识别
+                    builder.setUserAuthenticationRequired(false)
+                }
+
             }
 
         } catch (e: Exception) {
 
             // 国产 ROM 兜底
-            builder.setUserAuthenticationValidityDurationSeconds(-1)
+
+            if (hasBiometricHardware(context)) {
+                // 🔥 有指纹识别
+
+                // 🔐 强制认证
+                builder.setUserAuthenticationRequired(true)
+
+                builder.setUserAuthenticationValidityDurationSeconds(-1)
+
+            } else {
+                // 🔥 无指纹识别
+                builder.setUserAuthenticationRequired(false)
+            }
         }
 
         // ===============================

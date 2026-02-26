@@ -4,7 +4,6 @@ import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.hardware.fingerprint.FingerprintManager
 import android.os.Build
 import android.util.Base64
 import androidx.biometric.BiometricManager
@@ -120,21 +119,6 @@ class FlutterSecureStoragePlusPlugin :
         return true
     }
 
-    private fun hasBiometricHardware(context: Context): Boolean {
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
-
-        return try {
-            val fingerprintManager =
-                context.getSystemService(Context.FINGERPRINT_SERVICE) as FingerprintManager
-
-            fingerprintManager.isHardwareDetected &&
-                    fingerprintManager.hasEnrolledFingerprints()
-
-        } catch (e: Exception) {
-            false
-        }
-    }
 
     // =============================
     // Cipher
@@ -236,7 +220,9 @@ class FlutterSecureStoragePlusPlugin :
         }
 
         // Android 6–10 && 无指纹 分流
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R && !hasBiometricHardware(context)) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R
+            && !BiometricKeyStore.hasBiometricHardware(context)
+        ) {
 
             launchDeviceCredential(
                 action = {
@@ -354,7 +340,9 @@ class FlutterSecureStoragePlusPlugin :
         }
 
         // Android 6–10 && 无指纹 分流
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R && !hasBiometricHardware(context)) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R
+            && !BiometricKeyStore.hasBiometricHardware(context)
+        ) {
 
             launchDeviceCredential(
                 action = {
